@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>شلة (Shala)</title>
+    <link rel="manifest" href="/manifest.json">
+    <style>
+        body { font-family: 'Inter', sans-serif; margin: 0; background-color: #f4f6f8; color: #333; }
+        .app-bar { background-color: #197fe6; color: white; padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+        .app-bar h1 { margin: 0; font-size: 24px; }
+        .container { padding: 16px; margin-bottom: 80px; }
+        .section-title { font-size: 18px; font-weight: bold; margin-bottom: 12px; }
+        .horizontal-scroll { display: flex; overflow-x: auto; gap: 12px; padding-bottom: 8px; }
+        .card { background: white; border-radius: 12px; padding: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex: 0 0 200px; }
+        .vertical-list { display: flex; flex-direction: column; gap: 12px; }
+        .event-card { background: white; border-radius: 12px; padding: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px;}
+        .event-card .tag { background: #e0f2fe; color: #0284c7; padding: 4px 8px; border-radius: 4px; font-size: 12px; align-self: flex-start; }
+        .fab { position: fixed; bottom: 80px; right: 24px; width: 56px; height: 56px; background-color: #197fe6; color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 32px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); cursor: pointer; }
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; display: flex; justify-content: space-around; padding: 12px; box-shadow: 0 -2px 4px rgba(0,0,0,0.05); }
+        .nav-item { display: flex; flex-direction: column; align-items: center; font-size: 12px; color: #666; cursor: pointer; }
+        .nav-item.active { color: #197fe6; }
+        .hidden { display: none !important; }
+        .login-box, .modal-box { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 20px; text-align: center; }
+        input, select, textarea { padding: 10px; width: 80%; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; font-family: 'Inter', sans-serif;}
+        button { background: #197fe6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; width: 80%; margin-top: 10px;}
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-box { width: 90%; max-width: 400px; max-height: 80vh; overflow-y: auto; margin-top:0;}
+        .template-card { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; text-align: right; }
+        .template-card p { font-size: 12px; color: gray; margin: 4px 0; }
+    </style>
+</head>
+<body>
+
+    <div class="app-bar">
+        <h1>شلة 🔥</h1>
+        <div id="user-info">🔔 👤</div>
+    </div>
+
+    <!-- Login Flow -->
+    <div id="login-container" class="container">
+        <div class="login-box">
+            <h2>تسجيل الدخول</h2>
+            <p>سجل برقم موبايلك (WhatsApp)</p>
+            <input type="text" id="phone" placeholder="رقم الموبايل (مثال: +2010...)" />
+            <button onclick="requestOTP()">أرسل كود الدخول</button>
+            <br/><br/>
+            <input type="text" id="otp" placeholder="أدخل الكود" style="display:none;" />
+            <button id="verify-btn" onclick="verifyOTP()" style="display:none;">تأكيد الدخول</button>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboard-container" class="container hidden">
+        <div class="section-title">شِللي (My Groups)</div>
+        <div class="horizontal-scroll" id="groups-list"></div>
+
+        <div class="section-title" style="margin-top: 24px;">خروجات وعزومات جاية</div>
+        <div class="vertical-list" id="events-list"></div>
+
+        <div class="fab" onclick="document.getElementById('create-event-modal').classList.remove('hidden'); loadGroupsForSelect();">+</div>
+
+        <div class="bottom-nav">
+            <div class="nav-item active" onclick="toggleAdmin(false)">🏠<br>الرئيسية</div>
+            <div class="nav-item" onclick="toggleAdmin(true)">⚙️<br>الإدارة (Admin)</div>
+            <div class="nav-item" onclick="logout()">🚪<br>خروج</div>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="admin-container" class="container hidden">
+        <div class="section-title">لوحة الإدارة (Admin Dashboard)</div>
+
+        <div class="login-box" style="text-align: right;">
+            <h3>إدارة المستخدمين</h3>
+            <div id="admin-users" style="max-height: 150px; overflow-y: auto;">جاري التحميل...</div>
+        </div>
+
+        <div class="login-box" style="text-align: right;">
+            <h3>إدارة قوالب الرسائل (Templates)</h3>
+            <div id="admin-templates" style="max-height: 300px; overflow-y: auto; text-align: right;">جاري التحميل...</div>
+            <button onclick="fetchAdminData()" style="width: auto;">تحديث البيانات</button>
+        </div>
+
+        <div class="bottom-nav">
+            <div class="nav-item" onclick="toggleAdmin(false)">🏠<br>الرئيسية</div>
+            <div class="nav-item active" onclick="toggleAdmin(true)">⚙️<br>الإدارة (Admin)</div>
+            <div class="nav-item" onclick="logout()">🚪<br>خروج</div>
+        </div>
+    </div>
+
+    <!-- Create Event Modal -->
+    <div id="create-event-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <h2>خروجة جديدة 🚀</h2>
+            <input type="text" id="event-title" placeholder="اسم الخروجة (مثال: برجر عند ماك)" />
+            <select id="event-group"><option value="">اختر الشلة...</option></select>
+            <select id="event-type"><option value="Hangout">خروجة عادية 🎮</option><option value="Treat">عزومة 🍔</option></select>
+            <input type="date" id="event-date" />
+            <input type="time" id="event-time" />
+
+            <div id="dynamic-fields-container"></div>
+            <button onclick="addDynamicField()" style="background: #e0f2fe; color: #0284c7;">+ إضافة رابط/لوكيشن</button>
+            <button onclick="submitEvent()">إرسال الدعوات ✅</button>
+            <button onclick="document.getElementById('create-event-modal').classList.add('hidden');" style="background: #ccc; color: black;">إلغاء</button>
+        </div>
+    </div>
+
+    <!-- Edit Template Modal -->
+    <div id="edit-template-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <h2>تعديل القالب 📝</h2>
+            <input type="hidden" id="edit-template-id" />
+            <input type="text" id="edit-template-type" disabled style="background: #eee;" />
+            <input type="text" id="edit-template-title" placeholder="العنوان (Title)" />
+            <textarea id="edit-template-body" rows="4" placeholder="محتوى الرسالة (Body)"></textarea>
+            <p style="font-size: 12px; color: gray;">Placeholders: <span id="edit-template-placeholders"></span></p>
+            <button onclick="submitEditTemplate()">حفظ التعديلات ✅</button>
+            <button onclick="document.getElementById('edit-template-modal').classList.add('hidden');" style="background: #ccc; color: black;">إلغاء</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "";
+        let dynamicFieldsCount = 0;
+
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if(token) {
+                document.getElementById('login-container').classList.add('hidden');
+                document.getElementById('dashboard-container').classList.remove('hidden');
+                fetchDashboardData();
+            } else {
+                document.getElementById('login-container').classList.remove('hidden');
+                document.getElementById('dashboard-container').classList.add('hidden');
+                document.getElementById('admin-container').classList.add('hidden');
+            }
+        }
+
+        async function requestOTP() {
+            const phone = document.getElementById('phone').value;
+            if(!phone) return alert('أدخل رقم الموبايل');
+            try {
+                const res = await fetch(`${API_BASE}/auth/request-otp?phone=${encodeURIComponent(phone)}`, { method: 'POST' });
+                if(res.ok) {
+                    alert('تم الإرسال (تحقق من رسائل الواتساب أو استعمل كود التست إن وجد)');
+                    document.getElementById('otp').style.display = 'inline-block';
+                    document.getElementById('verify-btn').style.display = 'inline-block';
+                } else alert('حدث خطأ');
+            } catch(e) { alert(e); }
+        }
+
+        async function verifyOTP() {
+            const phone = document.getElementById('phone').value;
+            const otp = document.getElementById('otp').value;
+            if(!otp) return alert('أدخل الكود');
+            try {
+                const res = await fetch(`${API_BASE}/auth/verify-otp?phone=${encodeURIComponent(phone)}&code=${encodeURIComponent(otp)}`, { method: 'POST' });
+                if(res.ok) {
+                    const data = await res.json();
+                    localStorage.setItem('token', data.token);
+                    checkAuth();
+                } else alert('الكود خاطئ');
+            } catch(e) { alert(e); }
+        }
+
+        function logout() { localStorage.removeItem('token'); checkAuth(); }
+
+        function toggleAdmin(showAdmin) {
+            if(showAdmin) {
+                document.getElementById('dashboard-container').classList.add('hidden');
+                document.getElementById('admin-container').classList.remove('hidden');
+                fetchAdminData();
+            } else {
+                document.getElementById('dashboard-container').classList.remove('hidden');
+                document.getElementById('admin-container').classList.add('hidden');
+                fetchDashboardData();
+            }
+        }
+
+        async function fetchDashboardData() {
+            const token = localStorage.getItem('token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+
+            try {
+                const groupRes = await fetch(`${API_BASE}/groups`, { headers });
+                const groups = await groupRes.json();
+                const groupContainer = document.getElementById('groups-list');
+                groupContainer.innerHTML = '';
+                if(groups.length === 0) groupContainer.innerHTML = '<p>لا توجد شلل حالياً</p>';
+                groups.forEach(g => {
+                    groupContainer.innerHTML += `<div class="card"><h3>${g.name}</h3><p>${g.member_count} عضو</p></div>`;
+                });
+            } catch(e) { console.error(e); }
+
+            try {
+                const eventRes = await fetch(`${API_BASE}/events`, { headers });
+                const events = await eventRes.json();
+                const eventContainer = document.getElementById('events-list');
+                eventContainer.innerHTML = '';
+                if(events.length === 0) eventContainer.innerHTML = '<p>لا توجد خروجات مجدولة</p>';
+                events.forEach(e => {
+                    const tagStyle = e.type === 'Treat' ? 'background: #fef08a; color: #854d0e;' : 'background: #e0f2fe; color: #0284c7;';
+                    const tagEmoji = e.type === 'Treat' ? 'عزومة 🍔' : 'خروجة 🎮';
+                    eventContainer.innerHTML += `
+                        <div class="event-card">
+                             <div class="tag" style="${tagStyle}">${tagEmoji}</div>
+                             <h3>${e.title}</h3>
+                             <p>${e.date} - ${e.time}</p>
+                             <p style="color: gray; font-size: 12px;">مع: ${e.group_name} | منظم: ${e.creator_name}</p>
+                         </div>
+                    `;
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        async function fetchAdminData() {
+            const token = localStorage.getItem('token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+            try {
+                const res = await fetch(`${API_BASE}/admin/users`, { headers });
+                const users = await res.json();
+                const uContainer = document.getElementById('admin-users');
+                uContainer.innerHTML = '';
+                users.forEach(u => uContainer.innerHTML += `<p>${u.name || 'User'} - ${u.phone}</p>`);
+            } catch(e) { console.error(e); }
+
+            try {
+                const res = await fetch(`${API_BASE}/admin/templates`, { headers });
+                const templates = await res.json();
+                const tContainer = document.getElementById('admin-templates');
+                tContainer.innerHTML = '';
+                templates.forEach(t => {
+                    tContainer.innerHTML += `
+                        <div class="template-card">
+                            <strong>${t.type}</strong>
+                            <p>Title: ${t.title || 'N/A'}</p>
+                            <p>Body: ${t.body.substring(0,30)}...</p>
+                            <button style="font-size: 12px; width: auto; padding: 5px 10px;" onclick='openEditTemplate(${JSON.stringify(t).replace(/'/g, "&#39;")})'>تعديل</button>
+                        </div>
+                    `;
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        function openEditTemplate(tpl) {
+            document.getElementById('edit-template-id').value = tpl.id;
+            document.getElementById('edit-template-type').value = tpl.type;
+            document.getElementById('edit-template-title').value = tpl.title || "";
+            document.getElementById('edit-template-body').value = tpl.body || "";
+            document.getElementById('edit-template-placeholders').innerText = tpl.placeholders ? tpl.placeholders.join(", ") : "None";
+            document.getElementById('edit-template-modal').classList.remove('hidden');
+        }
+
+        async function submitEditTemplate() {
+            const id = document.getElementById('edit-template-id').value;
+            const payload = {
+                type: document.getElementById('edit-template-type').value,
+                title: document.getElementById('edit-template-title').value,
+                body: document.getElementById('edit-template-body').value,
+                placeholders: document.getElementById('edit-template-placeholders').innerText.split(", ").filter(x => x && x !== "None")
+            };
+
+            const token = localStorage.getItem('token');
+            try {
+                const res = await fetch(`${API_BASE}/admin/templates/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if(res.ok) {
+                    alert('تم التعديل بنجاح');
+                    document.getElementById('edit-template-modal').classList.add('hidden');
+                    fetchAdminData();
+                } else alert('حدث خطأ');
+            } catch(e) { alert(e); }
+        }
+
+        async function loadGroupsForSelect() {
+            const token = localStorage.getItem('token');
+            const select = document.getElementById('event-group');
+            try {
+                const res = await fetch(`${API_BASE}/groups`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const groups = await res.json();
+                select.innerHTML = '<option value="">اختر الشلة...</option>';
+                groups.forEach(g => select.innerHTML += `<option value="${g.id}">${g.name}</option>`);
+            } catch(e) { console.error(e); }
+        }
+
+        function addDynamicField() {
+            if(dynamicFieldsCount >= 20) return alert('الحد الأقصى 20');
+            const container = document.getElementById('dynamic-fields-container');
+            container.innerHTML += `<input type="text" class="dyn-field" placeholder="رابط جوجل ماب أو تفاصيل إضافية..." />`;
+            dynamicFieldsCount++;
+        }
+
+        async function submitEvent() {
+            const title = document.getElementById('event-title').value;
+            const group_id = document.getElementById('event-group').value;
+            const type = document.getElementById('event-type').value;
+            const date = document.getElementById('event-date').value;
+            const time = document.getElementById('event-time').value;
+
+            if(!title || !group_id || !date || !time) return alert('برجاء إكمال البيانات الأساسية');
+
+            const dynFieldsInputs = document.querySelectorAll('.dyn-field');
+            const dynamic_fields = Array.from(dynFieldsInputs).map(i => ({ link: i.value }));
+
+            const payload = { title, group_id: parseInt(group_id), type, date, time, dynamic_fields };
+
+            const token = localStorage.getItem('token');
+            try {
+                const res = await fetch(`${API_BASE}/events/create`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if(res.ok) {
+                    alert('تم إنشاء الخروجة بنجاح!');
+                    document.getElementById('create-event-modal').classList.add('hidden');
+                    fetchDashboardData();
+                } else alert('حدث خطأ');
+            } catch(e) { alert(e); }
+        }
+
+        checkAuth();
+    </script>
+</body>
+</html>
